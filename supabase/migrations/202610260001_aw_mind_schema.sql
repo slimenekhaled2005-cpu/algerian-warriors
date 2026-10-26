@@ -165,9 +165,12 @@ create policy "messages_owner_select" on public.messages
       where c.id = messages.conversation_id and c.user_id = (select auth.uid())
     )
   );
-create policy "messages_owner_insert" on public.messages
+-- A browser client may submit only the student's own message.
+-- Assistant messages must be written by the validated server route, not by a client.
+create policy "messages_owner_insert_user_only" on public.messages
   for insert to authenticated with check (
     user_id = (select auth.uid())
+    and role = 'user'
     and exists (
       select 1 from public.conversations c
       where c.id = messages.conversation_id and c.user_id = (select auth.uid())
@@ -187,8 +190,6 @@ create policy "usage_logs_read_own_or_admin" on public.usage_logs
   for select to authenticated using (
     user_id = (select auth.uid()) or public.has_aw_role((select auth.uid()), 'admin')
   );
-create policy "usage_logs_insert_own" on public.usage_logs
-  for insert to authenticated with check (user_id = (select auth.uid()));
-
+-- No client insert policy for usage_logs: trusted server code records verified token/cost metrics.
 -- Security note: service_role and database-owner credentials bypass RLS.
 -- Never expose them to browsers or use them for chat/admin-dashboard reads of messages.
